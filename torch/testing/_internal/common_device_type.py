@@ -1337,10 +1337,13 @@ def skipCUDAIfCudnnVersionLessThan(version=0):
 
 # Skips a test on CUDA if cuSparse generic API is not available
 def skipCUDAIfNoCusparseGeneric(fn):
-    return skipCUDAIfNotRocm(not TEST_CUSPARSE_GENERIC, "cuSparse Generic API not available")(fn)
+    return skipCUDAIf(not TEST_CUSPARSE_GENERIC, "cuSparse Generic API not available")(fn)
 
 def skipCUDAIfNoHipsparseGeneric(fn):
-    return skipCUDAIfRocmVersionLessThan((5, 1))(fn)
+    return skipCUDAIf(not TEST_HIPSPARSE_GENERIC, "hipSparse Generic API not available")(fn)
+
+def skipCUDAIfNoSparseGeneric(fn):
+    return skipCUDAIf(not (TEST_CUSPARSE_GENERIC or TEST_HIPSPARSE_GENERIC), "Sparse Generic API not available")(fn)
 
 def skipCUDAIfNoCudnn(fn):
     return skipCUDAIfCudnnVersionLessThan(0)(fn)
