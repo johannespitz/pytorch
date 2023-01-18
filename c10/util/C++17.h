@@ -11,22 +11,6 @@
 #include <type_traits>
 #include <utility>
 
-#if !defined(__clang__) && !defined(_MSC_VER) && defined(__GNUC__) && \
-    __GNUC__ < 5
-#error \
-    "You're trying to build PyTorch with a too old version of GCC. We need GCC 5 or later."
-#endif
-
-#if defined(__clang__) && __clang_major__ < 4
-#error \
-    "You're trying to build PyTorch with a too old version of Clang. We need Clang 4 or later."
-#endif
-
-#if (defined(_MSC_VER) && (!defined(_MSVC_LANG) || _MSVC_LANG < 201402L)) || \
-    (!defined(_MSC_VER) && __cplusplus < 201402L)
-#error You need C++14 to compile PyTorch
-#endif
-
 #if defined(_WIN32) && (defined(min) || defined(max))
 #error Macro clash with min and max -- define NOMINMAX when compiling your program on Windows
 #endif
@@ -48,6 +32,19 @@ using invoke_result = typename std::result_of<F && (args && ...)>;
 
 template <typename F, typename... args>
 using invoke_result_t = typename invoke_result<F, args...>::type;
+
+// std::is_pod is deprecated in C++20, std::is_standard_layout and
+// std::is_trivial are introduced in C++11, std::conjunction has been introduced
+// in C++17.
+template <typename T>
+#if defined(__cpp_lib_logical_traits) && __cpp_lib_logical_traits >= 201510L
+using is_pod = std::conjunction<std::is_standard_layout<T>, std::is_trivial<T>>;
+#else
+using is_pod = std::is_pod<T>;
+#endif
+
+template <typename T>
+constexpr bool is_pod_v = is_pod<T>::value;
 
 namespace guts {
 
@@ -127,7 +124,7 @@ using void_t = typename make_void<Ts...>::type;
 #define CUDA_HOST_DEVICE C10_HOST_DEVICE
 #endif
 
-#ifdef __cpp_lib_apply
+#if defined(__cpp_lib_apply) && !defined(__CUDA_ARCH__)
 
 template <class F, class Tuple>
 CUDA_HOST_DEVICE inline constexpr decltype(auto) apply(F&& f, Tuple&& t) {
@@ -341,7 +338,6 @@ template <bool Condition, class ThenCallback, class ElseCallback>
 decltype(auto) if_constexpr(
     ThenCallback&& thenCallback,
     ElseCallback&& elseCallback) {
-#if defined(__cpp_if_constexpr)
   // If we have C++17, just use it's "if constexpr" feature instead of wrapping
   // it. This will give us better error messages.
   if constexpr (Condition) {
@@ -363,17 +359,10 @@ decltype(auto) if_constexpr(
       return static_cast<ElseCallback&&>(elseCallback)();
     }
   }
-#else
-  // C++14 implementation of if constexpr
-  return detail::_if_constexpr<Condition>::call(
-      static_cast<ThenCallback&&>(thenCallback),
-      static_cast<ElseCallback&&>(elseCallback));
-#endif
 }
 
 template <bool Condition, class ThenCallback>
 decltype(auto) if_constexpr(ThenCallback&& thenCallback) {
-#if defined(__cpp_if_constexpr)
   // If we have C++17, just use it's "if constexpr" feature instead of wrapping
   // it. This will give us better error messages.
   if constexpr (Condition) {
@@ -388,11 +377,6 @@ decltype(auto) if_constexpr(ThenCallback&& thenCallback) {
       return static_cast<ThenCallback&&>(thenCallback)();
     }
   }
-#else
-  // C++14 implementation of if constexpr
-  return if_constexpr<Condition>(
-      static_cast<ThenCallback&&>(thenCallback), [](auto) {});
-#endif
 }
 
 // GCC 4.8 doesn't define std::to_string, even though that's in C++11. Let's
@@ -437,16 +421,6 @@ struct to_string_<T, void_t<decltype(std::to_string(std::declval<T>()))>>
 template <class T>
 inline std::string to_string(T value) {
   return detail::to_string_<T>::call(value);
-}
-
-template <class T>
-constexpr const T& min(const T& a, const T& b) {
-  return (b < a) ? b : a;
-}
-
-template <class T>
-constexpr const T& max(const T& a, const T& b) {
-  return (a < b) ? b : a;
 }
 
 } // namespace guts

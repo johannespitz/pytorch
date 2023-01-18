@@ -75,13 +75,11 @@ elif [[ "$image" == *rocm* ]]; then
   DOCKERFILE="${OS}-rocm/Dockerfile"
 fi
 
-if [[ "$image" == *bionic* ]]; then
-  CMAKE_VERSION=3.13.5
-fi
+# CMake 3.18 is needed to support CUDA17 language variant
+CMAKE_VERSION=3.18.5
 
-TRAVIS_DL_URL_PREFIX="https://s3.amazonaws.com/travis-python-archives/binaries/ubuntu/14.04/x86_64"
 _UCX_COMMIT=31e74cac7bee0ef66bef2af72e7d86d9c282e5ab
-_UCC_COMMIT=12944da33f911daf505d9bbc51411233d0ed85e1
+_UCC_COMMIT=1c7a7127186e7836f73aafbd7697bbc274a77eee
 
 # It's annoying to rename jobs every time you want to rewrite a
 # configuration, so we hardcode everything here rather than do it
@@ -189,15 +187,6 @@ case "$image" in
     VISION=yes
     CONDA_CMAKE=yes
     ;;
-  pytorch-linux-focal-rocm5.1-py3.8)
-    ANACONDA_PYTHON_VERSION=3.8
-    GCC_VERSION=9
-    PROTOBUF=yes
-    DB=yes
-    VISION=yes
-    ROCM_VERSION=5.1.1
-    CONDA_CMAKE=yes
-    ;;
   pytorch-linux-focal-rocm5.2-py3.8)
     ANACONDA_PYTHON_VERSION=3.8
     GCC_VERSION=9
@@ -205,11 +194,21 @@ case "$image" in
     DB=yes
     VISION=yes
     ROCM_VERSION=5.2
+    NINJA_VERSION=1.9.0
+    CONDA_CMAKE=yes
+    ;;
+  pytorch-linux-focal-rocm5.3-py3.8)
+    ANACONDA_PYTHON_VERSION=3.8
+    GCC_VERSION=9
+    PROTOBUF=yes
+    DB=yes
+    VISION=yes
+    ROCM_VERSION=5.3
+    NINJA_VERSION=1.9.0
     CONDA_CMAKE=yes
     ;;
   pytorch-linux-focal-py3.7-gcc7)
     ANACONDA_PYTHON_VERSION=3.7
-    CMAKE_VERSION=3.16.9  # Required for precompiled header support
     GCC_VERSION=7
     PROTOBUF=yes
     DB=yes
@@ -273,12 +272,6 @@ case "$image" in
   ;;
 esac
 
-# Set Jenkins UID and GID if running Jenkins
-if [ -n "${JENKINS:-}" ]; then
-  JENKINS_UID=$(id -u jenkins)
-  JENKINS_GID=$(id -g jenkins)
-fi
-
 tmp_tag=$(basename "$(mktemp -u)" | tr '[:upper:]' '[:lower:]')
 
 #when using cudnn version 8 install it separately from cuda
@@ -295,17 +288,12 @@ fi
 docker build \
        --no-cache \
        --progress=plain \
-       --build-arg "TRAVIS_DL_URL_PREFIX=${TRAVIS_DL_URL_PREFIX}" \
        --build-arg "BUILD_ENVIRONMENT=${image}" \
        --build-arg "PROTOBUF=${PROTOBUF:-}" \
        --build-arg "THRIFT=${THRIFT:-}" \
        --build-arg "LLVMDEV=${LLVMDEV:-}" \
        --build-arg "DB=${DB:-}" \
        --build-arg "VISION=${VISION:-}" \
-       --build-arg "EC2=${EC2:-}" \
-       --build-arg "JENKINS=${JENKINS:-}" \
-       --build-arg "JENKINS_UID=${JENKINS_UID:-}" \
-       --build-arg "JENKINS_GID=${JENKINS_GID:-}" \
        --build-arg "UBUNTU_VERSION=${UBUNTU_VERSION}" \
        --build-arg "CENTOS_VERSION=${CENTOS_VERSION}" \
        --build-arg "DEVTOOLSET_VERSION=${DEVTOOLSET_VERSION}" \
